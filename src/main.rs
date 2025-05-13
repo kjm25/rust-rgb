@@ -10,19 +10,15 @@ pub const BLUE: u8 = 2;
 use rtt_target::{rtt_init_print, rprintln};                                   
 use panic_rtt_target as _;                                                    
 
-// use embedded_hal_nb::serial::Write;
-// mod serial_setup;
-// use serial_setup::UartePort;
-
 use embedded_hal::{delay::DelayNs, digital::OutputPin};
 use embedded_hal::digital::PinState;
 use microbit::{
     board::Board,
+    // hal::gpio,
     hal::gpio::Level,
     hal::gpio::OpenDrainConfig,
-    // hal::rng::{Rng},
     hal::timer::Timer,
-    // gpio::DisplayPins,
+    // hal::spi,
     hal::uarte::{Uarte, Baudrate, Parity},
 };
 
@@ -51,6 +47,16 @@ fn start_here() -> ! {
         Parity::EXCLUDED,
         Baudrate::BAUD115200,
     );
+
+    // SPI Initialization
+    // let mut mosi = microbit::gpio::MOSI; //.into_push_pull_input(Level::Low);
+    // let mut miso = gpio::miso.into_push_pull_input(Level::Low);
+    // let mut sck  = gpio::sck.into_push_pull_output(Level::Low);
+    // let mut cs   = board.edge.e16.into_push_pull_output(Level::High);
+
+    // let mut spi = spi::Spi::new(
+
+    // );
    
     // Clear terminal
     serial_write(&mut serial, b"\x1Bc");
