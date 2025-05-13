@@ -1,0 +1,19 @@
+[package]
+name = "blinky"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cortex-m-rt = "0.7"
+embedded-alloc = "0.6.0"
+embedded-hal = "1.0.0"
+embedded-hal-nb = "1.0.0"
+embedded-io = "0.6.1"
+microbit-v2 = "0.15.1"
+nb = "1.1.0"
+panic-rtt-target = "0.2.0"
+rtt-target = "0.6.1"
+
+[dependencies.cortex-m]
+version = "0.7.7"
+features = ["critical-section-single-core"]
