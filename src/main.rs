@@ -15,24 +15,14 @@ use microbit::{
     board::Board,
     // hal::gpio,
     hal::gpio::Level,
+    hal::pwm::Channel,
+    hal::pwm,
     hal::gpio::OpenDrainConfig,
     hal::timer::Timer,
     // hal::spi,
     hal::uarte::{Baudrate, Parity, Uarte},
 };
 
-fn serial_write<T>(serial: &mut Uarte<T>, buffer: &[u8]) -> ()
-where
-    T: microbit::hal::uarte::Instance,
-{
-    // for each byte in the buffer, write it out to the serial port
-    for b in buffer {
-        match serial.write(&[*b]) {
-            Ok(_r) => (),
-            Err(e) => rprintln!("Serial Error: {:?}", e),
-        }
-    }
-}
 
 #[cortex_m_rt::entry]
 fn start_here() -> ! {
@@ -40,6 +30,7 @@ fn start_here() -> ! {
     let mut board = Board::take().unwrap();
     let mut timer = Timer::new(board.TIMER0);
     let mut led_timer: Timer<microbit::pac::TIMER1> = Timer::new(board.TIMER1);
+
 
     // Set up UARTE for microbit v2 using UartePort wrapper
     let mut serial = Uarte::new(
@@ -59,34 +50,35 @@ fn start_here() -> ! {
 
     // );
 
-    // Clear terminal
-    serial_write(&mut serial, b"\x1Bc");
 
     // Setup the low side of the matrix LED
     board.display_pins.col5.set_state(PinState::Low).unwrap();
 
     // Setup the RGB LED pins as open drain with inital setting LOW
     // Turns off the RGB LED
-    let mut red_left: microbit::hal::gpio::p0::P0_02<
-        microbit::hal::gpio::Output<microbit::hal::gpio::OpenDrain>,
-    > = board
+    let mut red_left= board
         .edge
         .e00
-        .into_open_drain_output(OpenDrainConfig::HighDrive0Disconnect1, Level::Low);
-    let mut green_left: microbit::hal::gpio::p0::P0_03<
-        microbit::hal::gpio::Output<microbit::hal::gpio::OpenDrain>,
-    > = board
+        .into_push_pull_output(Level::Low);
+    let green_left = board
         .edge
         .e01
-        .into_open_drain_output(OpenDrainConfig::HighDrive0Disconnect1, Level::Low);
-    let mut blue_left: microbit::hal::gpio::p0::P0_04<
-        microbit::hal::gpio::Output<microbit::hal::gpio::OpenDrain>,
-    > = board
+        .into_push_pull_output(Level::Low);
+    let mut blue_left= board
         .edge
         .e02
-        .into_open_drain_output(OpenDrainConfig::HighDrive0Disconnect1, Level::Low);
+        .into_push_pull_output(Level::Low);
 
     // Initial color state
+
+    let mut green_pwn = pwm::Pwm::new(board.PWM0);
+    green_pwn.set_output_pin(Channel::C0, green_left.degrade());
+
+    let mut red_pwm = pwm::Pwm::new(board.PWM1);
+    green_pwn.set_output_pin(Channel::C1, red_left.degrade());
+
+    let mut blue_pwm = pwm::Pwm::new(board.PWM2);
+    blue_pwm.set_output_pin(Channel::C1, blue_left.degrade());
 
     loop {
         // Toggle the Matrix LED on
@@ -95,113 +87,85 @@ fn start_here() -> ! {
         turn_on(
             0,
             100,
-            20,
-            500,
-            &mut red_left,
-            &mut green_left,
-            &mut blue_left,
-            &mut led_timer,
-        );
-
-        turn_on(
             0,
-            20,
-            100,
             500,
-            &mut red_left,
-            &mut green_left,
-            &mut blue_left,
+            &mut red_pwm,
+            &mut green_pwn,
+            &mut blue_pwm,
             &mut led_timer,
         );
 
         turn_on(
             100,
             0,
-            50,
+            100,
             500,
-            &mut red_left,
-            &mut green_left,
-            &mut blue_left,
+            &mut red_pwm,
+            &mut green_pwn,
+            &mut blue_pwm,
             &mut led_timer,
         );
 
         turn_on(
             100,
-            20,
-            20,
+            100,
+            100,
             500,
-            &mut red_left,
-            &mut green_left,
-            &mut blue_left,
+            &mut red_pwm,
+            &mut green_pwn,
+            &mut blue_pwm,
             &mut led_timer,
         );
 
         turn_on(
-            50,
-            100,
+            0,
+            0,
             0,
             500,
-            &mut red_left,
-            &mut green_left,
-            &mut blue_left,
+            &mut red_pwm,
+            &mut green_pwn,
+            &mut blue_pwm,
             &mut led_timer,
         );
+
         // On time
-        timer.delay_ms(500);
+        
 
         // Toggle the Matrix LED off
         board.display_pins.row3.set_state(PinState::Low).unwrap();
 
         // depending on color state, turn off the RGB LED
         // Off time
-        timer.delay_ms(500);
     }
 }
 
 fn turn_on(
-    red_percent: u32,
-    green_percent: u32,
-    blue_percent: u32,
+    red_percent: u16,
+    green_percent: u16,
+    blue_percent: u16,
     total_time_ms: u32,
-    red: &mut microbit::hal::gpio::p0::P0_02<
-        microbit::hal::gpio::Output<microbit::hal::gpio::OpenDrain>,
-    >,
-    green: &mut microbit::hal::gpio::p0::P0_03<
-        microbit::hal::gpio::Output<microbit::hal::gpio::OpenDrain>,
-    >,
-    blue: &mut microbit::hal::gpio::p0::P0_04<
-        microbit::hal::gpio::Output<microbit::hal::gpio::OpenDrain>,
-    >,
+    red: &mut pwm::Pwm<microbit::pac::PWM1>,
+    green: &mut pwm::Pwm<microbit::pac::PWM0>,
+    blue: &mut pwm::Pwm<microbit::pac::PWM2>,
     timer: &mut Timer<microbit::pac::TIMER1>,
 ) {
-    let mut total_time_elapsed = 0;
-    let mut cycle = 0;
-    while total_time_elapsed < total_time_ms * 1000 {
-        if cycle < red_percent {
-            red.set_high().unwrap();
-        } else {
-            red.set_low().unwrap();
-        }
-        if cycle < green_percent {
-            green.set_high().unwrap();
-        } else {
-            green.set_low().unwrap();
-        }
-        if cycle < blue_percent {
-            blue.set_high().unwrap();
-        } else {
-            blue.set_low().unwrap();
-        }
+    
+    green.set_max_duty(100).set_duty_off(Channel::C0, green_percent);
+    green.enable();
+    green.loop_inf();
 
-        timer.delay_us(10);
-        total_time_elapsed += 10;
-        cycle += 1;
-        if cycle > 100 {
-            cycle = 0;
-        }
-    }
+    red.set_max_duty(100).set_duty_off(Channel::C1, red_percent);
+    red.enable();
+    red.loop_inf();
 
-    red.set_low().unwrap();
-    green.set_low().unwrap();
-    blue.set_low().unwrap();
+    blue.set_max_duty(100).set_duty_off(Channel::C1, blue_percent);
+    blue.enable();
+    blue.loop_inf();
+
+
+    timer.delay_ms(total_time_ms);
+
+    green.disable();
+    red.disable();
+    blue.disable();
 }
